@@ -5,22 +5,30 @@ class PrestigeManager {
     this.lastLevel = null
 
     this.onMessage = this.onMessage.bind(this)
+    this.onJsonMessage = this.onJsonMessage.bind(this)
     this.onWindowOpen = this.onWindowOpen.bind(this)
   }
 
   start() {
     this.bot.on("messagestr", this.onMessage)
+    this.bot.on("message", this.onJsonMessage)
     this.bot.on("windowOpen", this.onWindowOpen)
   }
 
   stop() {
     this.bot.removeListener("messagestr", this.onMessage)
+    this.bot.removeListener("message", this.onJsonMessage)
     this.bot.removeListener("windowOpen", this.onWindowOpen)
     this.state = "idle"
   }
 
   onMessage(message) {
     const text = this.cleanText(message)
+
+    if (this.isRelevantMessage(text)) {
+      console.log("💬 PrestigeManager:", text)
+    }
+
     const level = this.getPickaxeLevel(text)
 
     if (level !== null) {
@@ -43,6 +51,14 @@ class PrestigeManager {
     }
   }
 
+  onJsonMessage(message) {
+    this.onMessage(message.toString())
+  }
+
+  check() {
+    this.requestPrestigeMenu("🔎 Revisando Prestige disponible")
+  }
+
   getPickaxeLevel(text) {
     const match = text.match(/your\s+pickaxe\s+has\s+levelled\s+up\s+to\s+(\d+)/i)
 
@@ -54,12 +70,20 @@ class PrestigeManager {
       /prestige\s+pickaxe/i.test(text)
   }
 
+  isRelevantMessage(text) {
+    return /pickaxe|prestige|rebirth/i.test(text)
+  }
+
   openPrestigeMenu() {
+    this.requestPrestigeMenu(`✨ Prestige disponible${this.lastLevel ? ` en nivel ${this.lastLevel}` : ""}`)
+  }
+
+  requestPrestigeMenu(message) {
     if (this.state !== "idle") return
 
     this.state = "waiting_for_menu"
     this.bot.chat("/pp")
-    console.log(`✨ Prestige disponible${this.lastLevel ? ` en nivel ${this.lastLevel}` : ""}`)
+    console.log(message)
   }
 
   async onWindowOpen(window) {
