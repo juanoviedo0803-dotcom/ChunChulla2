@@ -56,6 +56,7 @@ function createBot() {
           .then(() => {
             isModeSelected = true
             console.log("✅ Modo seleccionado")
+            prestigeManager.check()
           })
           .catch((err) => {
             console.log("❌ Error al hacer click:", err.message)
