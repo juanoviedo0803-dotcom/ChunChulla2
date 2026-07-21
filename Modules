@@ -1,2 +1,0 @@
-const modules = [
-  require('./modules/Pprestige'),
