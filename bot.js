@@ -1,4 +1,5 @@
 const mineflayer = require("mineflayer")
+const PrestigeManager = require("./PrestigeManager")
 
 let reconnectDelay = 10000 // empieza en 10s
 
@@ -9,6 +10,10 @@ function createBot() {
     username: "lematadorsss",
     version: "1.8.9"
   })
+  const prestigeManager = new PrestigeManager(bot)
+  let isModeSelected = false
+
+  prestigeManager.start()
 
   bot.on("login", () => {
     console.log("✅ Bot conectado al servidor")
@@ -34,6 +39,8 @@ function createBot() {
   })
 
   bot.on("windowOpen", (window) => {
+    if (isModeSelected) return
+
     console.log("📦 Menú abierto")
 
     setTimeout(() => {
@@ -47,6 +54,7 @@ function createBot() {
 
         bot.clickWindow(slot, 0, 0)
           .then(() => {
+            isModeSelected = true
             console.log("✅ Modo seleccionado")
           })
           .catch((err) => {
@@ -60,6 +68,7 @@ function createBot() {
   })
 
   bot.on("end", () => {
+    prestigeManager.stop()
     console.log("❌ Bot desconectado")
     console.log(`🔄 Reconectando en ${reconnectDelay / 1000}s...`)
 
