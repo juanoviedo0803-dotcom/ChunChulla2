@@ -3,6 +3,7 @@ class PrestigeManager {
     this.bot = bot
     this.state = "idle"
     this.lastLevel = null
+    this.lastAttemptedLevel = null
 
     this.onMessage = this.onMessage.bind(this)
     this.onJsonMessage = this.onJsonMessage.bind(this)
@@ -32,12 +33,12 @@ class PrestigeManager {
     const level = this.getPickaxeLevel(text)
 
     if (level !== null) {
-      this.lastLevel = level
-      return
-    }
+      if (this.lastLevel !== null && level < this.lastLevel) {
+        this.lastAttemptedLevel = null
+      }
 
-    if (this.canOpenPrestigeMenu(text)) {
-      this.openPrestigeMenu()
+      this.lastLevel = level
+      this.tryPrestigeAtLevel(level)
       return
     }
 
@@ -55,8 +56,11 @@ class PrestigeManager {
     this.onMessage(message.toString())
   }
 
-  check() {
-    this.requestPrestigeMenu("🔎 Revisando Prestige disponible")
+  tryPrestigeAtLevel(level) {
+    if (!this.isPrestigeLevel(level) || this.lastAttemptedLevel === level) return
+
+    this.lastAttemptedLevel = level
+    this.openPrestigeMenu()
   }
 
   getPickaxeLevel(text) {
@@ -65,9 +69,8 @@ class PrestigeManager {
     return match ? Number(match[1]) : null
   }
 
-  canOpenPrestigeMenu(text) {
-    return /you\s+can\s+now\s+prestige\s+your\s+pickaxe/i.test(text) ||
-      /prestige\s+pickaxe/i.test(text)
+  isPrestigeLevel(level) {
+    return level >= 201 && (level - 201) % 50 === 0
   }
 
   isRelevantMessage(text) {
@@ -94,6 +97,7 @@ class PrestigeManager {
     if (!target) {
       this.state = "idle"
       console.log("⚠️ No se encontró un Prestige o Rebirth disponible")
+      this.closeMenu(window)
       return
     }
 
@@ -109,6 +113,7 @@ class PrestigeManager {
     } catch (err) {
       this.state = "idle"
       console.log("⚠️ Error al seleccionar Prestige/Rebirth:", err.message)
+      this.closeMenu(window)
     }
   }
 
@@ -137,7 +142,8 @@ class PrestigeManager {
   }
 
   isAvailablePrestige(item) {
-    return this.getPrestigeNumber(item) !== null && this.isYellow(item)
+    return this.getPrestigeNumber(item) !== null &&
+      this.getItemId(item) === "minecraft:yellow_stained_glass_pane"
   }
 
   isAvailableRebirth(item) {
@@ -154,12 +160,10 @@ class PrestigeManager {
     return match ? Number(match[1]) : null
   }
 
-  isYellow(item) {
-    const text = this.getRawItemText(item)
+  getItemId(item) {
+    const name = item.name || item.registryName || ""
 
-    return item.metadata === 4 ||
-      text.includes(`${String.fromCharCode(167)}e`) ||
-      /\\u00a7e/i.test(text)
+    return name.includes(":") ? name : `minecraft:${name}`
   }
 
   getItemText(item) {
@@ -199,6 +203,14 @@ class PrestigeManager {
   isRebirthConfirmation(text) {
     return /(?:rebirth|rebirthed).*(?:completed|complete|successful|success|purchased|unlocked)/i.test(text) ||
       /(?:completed|complete|successful|success|purchased|unlocked).*rebirth/i.test(text)
+  }
+
+  closeMenu(window) {
+    try {
+      this.bot.closeWindow(window)
+    } catch (err) {
+      console.log("⚠️ Error al cerrar el menú:", err.message)
+    }
   }
 
   finish(message) {
