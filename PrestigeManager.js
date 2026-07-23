@@ -145,7 +145,7 @@ class PrestigeManager {
   }
 
   isAvailablePrestige(item) {
-    return this.getItemId(item) === "minecraft:yellow_stained_glass_pane"
+    return this.getItemId(item) === "yellow_stained_glass_pane"
   }
 
   isAvailableRebirth(item) {
