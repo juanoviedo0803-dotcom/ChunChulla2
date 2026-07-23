@@ -3,7 +3,13 @@ class PrestigeManager {
     this.bot = bot
     this.state = "idle"
     this.lastLevel = null
-    this.lastAttemptedLevel = null
+    this.activeWindow = null
+    this.stateTimeout = null
+    this.stateTimeouts = {
+      waiting_for_menu: 10000,
+      waiting_for_prestige_confirmation: 10000,
+      waiting_for_rebirth_confirmation: 10000
+    }
 
     this.onMessage = this.onMessage.bind(this)
     this.onJsonMessage = this.onJsonMessage.bind(this)
@@ -20,7 +26,8 @@ class PrestigeManager {
     this.bot.removeListener("messagestr", this.onMessage)
     this.bot.removeListener("message", this.onJsonMessage)
     this.bot.removeListener("windowOpen", this.onWindowOpen)
-    this.state = "idle"
+    this.setState("idle")
+    this.activeWindow = null
   }
 
   onMessage(message) {
@@ -33,10 +40,6 @@ class PrestigeManager {
     const level = this.getPickaxeLevel(text)
 
     if (level !== null) {
-      if (this.lastLevel !== null && level < this.lastLevel) {
-        this.lastAttemptedLevel = null
-      }
-
       this.lastLevel = level
       this.tryPrestigeAtLevel(level)
       return
@@ -57,9 +60,8 @@ class PrestigeManager {
   }
 
   tryPrestigeAtLevel(level) {
-    if (!this.isPrestigeLevel(level) || this.lastAttemptedLevel === level) return
+    if (level < 200 || this.state !== "idle") return
 
-    this.lastAttemptedLevel = level
     this.openPrestigeMenu()
   }
 
@@ -69,22 +71,18 @@ class PrestigeManager {
     return match ? Number(match[1]) : null
   }
 
-  isPrestigeLevel(level) {
-    return level >= 201 && (level - 201) % 50 === 0
-  }
-
   isRelevantMessage(text) {
     return /pickaxe|prestige|rebirth/i.test(text)
   }
 
   openPrestigeMenu() {
-    this.requestPrestigeMenu(`✨ Prestige disponible${this.lastLevel ? ` en nivel ${this.lastLevel}` : ""}`)
+    this.requestPrestigeMenu(`🔎 Comprobando Prestige${this.lastLevel ? ` en nivel ${this.lastLevel}` : ""}`)
   }
 
   requestPrestigeMenu(message) {
     if (this.state !== "idle") return
 
-    this.state = "waiting_for_menu"
+    this.setState("waiting_for_menu")
     this.bot.chat("/pp")
     console.log(message)
   }
@@ -92,49 +90,54 @@ class PrestigeManager {
   async onWindowOpen(window) {
     if (this.state !== "waiting_for_menu") return
 
-    const target = this.findNextAction(window)
-
-    if (!target) {
-      this.state = "idle"
-      console.log("⚠️ No se encontró un Prestige o Rebirth disponible")
-      this.closeMenu(window)
-      return
-    }
-
-    this.state = target.kind === "prestige"
-      ? "waiting_for_prestige_confirmation"
-      : "waiting_for_rebirth_confirmation"
-
     try {
+      this.activeWindow = window
+      const prestigeOptions = this.findAvailablePrestiges(window)
+
+      if (prestigeOptions.length > 1) {
+        this.recover("⚠️ Se encontraron varios Prestiges amarillos; cerrando el menú", window)
+        return
+      }
+
+      const target = prestigeOptions[0] || this.findAvailableRebirth(window)
+
+      if (!target) {
+        this.recover("⚠️ No se encontró un Prestige amarillo ni un Rebirth disponible", window)
+        return
+      }
+
+      this.setState(target.kind === "prestige"
+        ? "waiting_for_prestige_confirmation"
+        : "waiting_for_rebirth_confirmation")
+
       await this.bot.clickWindow(target.slot, 0, 0)
       console.log(target.kind === "prestige"
         ? `⛏️ Seleccionando ${target.label}`
         : `🌟 Seleccionando ${target.label}`)
     } catch (err) {
-      this.state = "idle"
-      console.log("⚠️ Error al seleccionar Prestige/Rebirth:", err.message)
-      this.closeMenu(window)
+      this.recover(`⚠️ Error al seleccionar Prestige/Rebirth: ${err.message}`, window)
     }
   }
 
-  findNextAction(window) {
-    const items = window.slots
+  getWindowItems(window) {
+    return window.slots
       .map((item, slot) => ({ item, slot }))
       .filter(({ item }) => item)
+  }
 
-    const prestige = items
+  findAvailablePrestiges(window) {
+    return this.getWindowItems(window)
       .filter(({ item }) => this.isAvailablePrestige(item))
       .map(({ item, slot }) => ({
         kind: "prestige",
         slot,
-        label: this.getItemText(item),
-        number: this.getPrestigeNumber(item)
+        label: this.getItemText(item)
       }))
-      .sort((a, b) => a.number - b.number)[0]
+  }
 
-    if (prestige) return prestige
-
-    const rebirth = items.find(({ item }) => this.isAvailableRebirth(item))
+  findAvailableRebirth(window) {
+    const rebirth = this.getWindowItems(window)
+      .find(({ item }) => this.isAvailableRebirth(item))
 
     return rebirth
       ? { kind: "rebirth", slot: rebirth.slot, label: this.getItemText(rebirth.item) }
@@ -142,22 +145,16 @@ class PrestigeManager {
   }
 
   isAvailablePrestige(item) {
-    return this.getPrestigeNumber(item) !== null &&
-      this.getItemId(item) === "minecraft:yellow_stained_glass_pane"
+    return this.getItemId(item) === "minecraft:yellow_stained_glass_pane"
   }
 
   isAvailableRebirth(item) {
     const text = this.getItemText(item)
 
-    return this.getPrestigeNumber(item) === null &&
+    return !this.isAvailablePrestige(item) &&
       /rebirth\s+\d+/i.test(text) &&
+      !/prestige/i.test(text) &&
       /click\s+to\s+rebirth/i.test(text)
-  }
-
-  getPrestigeNumber(item) {
-    const match = this.getItemText(item).match(/rebirth\s+\d+\s+prestige\s+(\d+)/i)
-
-    return match ? Number(match[1]) : null
   }
 
   getItemId(item) {
@@ -206,19 +203,50 @@ class PrestigeManager {
   }
 
   closeMenu(window) {
+    if (!window) return
+
     try {
       this.bot.closeWindow(window)
     } catch (err) {
       console.log("⚠️ Error al cerrar el menú:", err.message)
+    } finally {
+      if (this.activeWindow === window) this.activeWindow = null
     }
+  }
+
+  setState(state) {
+    this.clearStateTimeout()
+    this.state = state
+
+    const timeout = this.stateTimeouts[state]
+
+    if (!timeout) return
+
+    this.stateTimeout = setTimeout(() => {
+      if (this.state !== state) return
+
+      this.recover(`⚠️ Tiempo de espera agotado: ${state}`)
+    }, timeout)
+  }
+
+  clearStateTimeout() {
+    if (!this.stateTimeout) return
+
+    clearTimeout(this.stateTimeout)
+    this.stateTimeout = null
+  }
+
+  recover(message, window = this.activeWindow) {
+    console.log(message)
+    this.setState("idle")
+    this.closeMenu(window)
   }
 
   finish(message) {
     if (this.state === "idle") return
 
-    this.state = "idle"
     this.lastLevel = null
-    console.log(`✅ ${message}`)
+    this.recover(`✅ ${message}`)
   }
 }
 
