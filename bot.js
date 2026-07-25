@@ -38,8 +38,14 @@ function createBot() {
     }, 7000)
   })
 
-  bot.on("windowOpen", (window) => {
-    if (isModeSelected) return
+ bot.on("windowOpen", (window) => {
+
+  console.log("📦 MAIN detectó windowOpen:", window.title)
+
+  if (isModeSelected) return
+
+  ...
+})
 
     console.log("📦 Menú abierto")
 
