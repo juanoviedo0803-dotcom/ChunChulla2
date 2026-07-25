@@ -80,14 +80,21 @@ class PrestigeManager {
   }
 
   requestPrestigeMenu(message) {
-    if (this.state !== "idle") return
+  if (this.state !== "idle") return
 
-    this.setState("waiting_for_menu")
-    console.log("Voy a enviar /pp")
-    this.bot.chat("/pp")
-    console.log("Comando enviado ✅")
-    console.log(message)
-  }
+  this.setState("waiting_for_menu")
+
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+  console.log("➡ Voy a enviar /pp")
+  console.log("Estado:", this.state)
+  console.log("currentWindow:", this.bot.currentWindow)
+
+  this.bot.chat("/pp")
+
+  console.log("✅ Comando enviado")
+  console.log(message)
+}
+
 
   async onWindowOpen(window) {
     if (this.state !== "waiting_for_menu") return
