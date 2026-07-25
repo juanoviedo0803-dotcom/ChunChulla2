@@ -83,7 +83,9 @@ class PrestigeManager {
     if (this.state !== "idle") return
 
     this.setState("waiting_for_menu")
+    console.log("Voy a enviar /pp")
     this.bot.chat("/pp")
+    console.log("Comando enviado ✅")
     console.log(message)
   }
 
