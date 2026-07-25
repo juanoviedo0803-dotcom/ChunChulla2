@@ -96,8 +96,15 @@ class PrestigeManager {
 }
 
 
-  async onWindowOpen(window) {
-    if (this.state !== "waiting_for_menu") return
+ async onWindowOpen(window) {
+  console.log("📦 EVENTO windowOpen recibido")
+  console.log("Estado actual:", this.state)
+  console.log("Título:", window.title)
+
+  if (this.state !== "waiting_for_menu") return
+
+  ...
+}
 
     try {
       this.activeWindow = window
