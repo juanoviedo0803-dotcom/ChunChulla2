@@ -98,3 +98,8 @@ createBot()
 setInterval(() => {
   // keep alive sin spam
 }, 30000)
+
+setTimeout(() => {
+  console.log("PRUEBA: enviando /pp manualmente");
+  bot.chat("/pp");
+}, 30000);
