@@ -2,14 +2,9 @@ const mineflayer = require("mineflayer")
 const PrestigeManager = require("./PrestigeManager")
 
 let reconnectDelay = 10000
-let botNumber = 0
 
 function createBot() {
-  botNumber++
-
-  const currentBot = botNumber
-
-  console.log(`🚀 Creando instancia de bot #${currentBot}`)
+  console.log("🚀 Creando bot...")
 
   const bot = mineflayer.createBot({
     host: "mc.ultranetwork.net",
@@ -22,35 +17,13 @@ function createBot() {
   prestigeManager.start()
 
   bot.on("login", () => {
-    console.log(`✅ Bot #${currentBot} conectado al servidor`)
+    console.log("✅ Bot conectado al servidor")
+
     reconnectDelay = 10000
   })
 
   bot.on("spawn", () => {
-    console.log(`🎮 Bot #${currentBot} apareció en el mundo`)
-    
-    // ...
-  })
-
-  bot.on("end", () => {
-    prestigeManager.stop()
-
-    console.log(`❌ Bot #${currentBot} desconectado`)
-    console.log(
-      `🔄 Bot #${currentBot}: reconectando en ${reconnectDelay / 1000}s...`
-    )
-
-    setTimeout(() => {
-      createBot()
-    }, reconnectDelay)
-
-    reconnectDelay = Math.min(reconnectDelay + 5000, 60000)
-  })
-
-  bot.on("error", (err) => {
-    console.log(`⚠️ Bot #${currentBot} error:`, err.message)
-  })
-}
+    console.log("🎮 Bot apareció en el mundo")
 
     setTimeout(() => {
       bot.chat("/login juan123")
@@ -67,6 +40,7 @@ function createBot() {
     }, 7000)
   })
 
+  // Menú inicial para seleccionar Prisión
   bot.on("windowOpen", (window) => {
     console.log("📦 Menú abierto")
 
@@ -77,14 +51,20 @@ function createBot() {
 
       if (item) {
         const slot = window.slots.indexOf(item)
-        console.log(`⛏️ Pico encontrado en slot ${slot}, seleccionando...`)
+
+        console.log(
+          `⛏️ Pico encontrado en slot ${slot}, seleccionando...`
+        )
 
         bot.clickWindow(slot, 0, 0)
           .then(() => {
             console.log("✅ Modo seleccionado")
           })
           .catch((err) => {
-            console.log("❌ Error al hacer click:", err.message)
+            console.log(
+              "❌ Error al hacer click:",
+              err.message
+            )
           })
 
       } else {
@@ -93,28 +73,33 @@ function createBot() {
     }, 1500)
   })
 
- bot.on("end", () => {
-  prestigeManager.stop()
+  bot.on("end", () => {
+    prestigeManager.stop()
 
-  console.log("❌ Bot desconectado")
-  console.log(`🔄 Reconectando en ${reconnectDelay / 1000}s...`)
+    console.log("❌ Bot desconectado")
+    console.log(
+      `🔄 Reconectando en ${reconnectDelay / 1000}s...`
+    )
 
-  setTimeout(() => {
-    createBot()
-  }, reconnectDelay)
+    setTimeout(() => {
+      createBot()
+    }, reconnectDelay)
 
-  reconnectDelay = Math.min(reconnectDelay + 5000, 60000)
-})
+    reconnectDelay = Math.min(
+      reconnectDelay + 5000,
+      60000
+    )
+  })
 
   bot.on("error", (err) => {
     console.log("⚠️ Error:", err.message)
   })
 }
 
-// iniciar bot
+// Iniciar bot
 createBot()
 
-// mantener proceso vivo (Railway)
+// Mantener proceso vivo en Railway
 setInterval(() => {
-  // keep alive sin spam
+  // keep alive
 }, 30000)
