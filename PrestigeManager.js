@@ -37,7 +37,10 @@ class PrestigeManager {
     if (level >= 300 && !this.triggered) {
       this.triggered = true
 
-      console.log("🚀 Nivel 300 alcanzado. Enviando /pp...")
+      console.log(
+        "🚀 Nivel 300 alcanzado. Enviando /pp..."
+      )
+
       this.bot.chat("/pp")
     }
   }
@@ -60,7 +63,10 @@ class PrestigeManager {
       )
 
       if (!item) {
-        console.log("❌ No se encontró ningún Prestige amarillo")
+        console.log(
+          "❌ No se encontró ningún Prestige amarillo"
+        )
+
         this.triggered = false
         return
       }
