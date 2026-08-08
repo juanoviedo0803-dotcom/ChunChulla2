@@ -63,17 +63,18 @@ prestigeManager.start()
     }, 1500)
   })
 
-  bot.on("end", () => {
-    console.log("❌ Bot desconectado")
-    console.log(`🔄 Reconectando en ${reconnectDelay / 1000}s...`)
+ bot.on("end", () => {
+  prestigeManager.stop()
 
-    setTimeout(() => {
-      createBot()
-    }, reconnectDelay)
+  console.log("❌ Bot desconectado")
+  console.log(`🔄 Reconectando en ${reconnectDelay / 1000}s...`)
 
-    // aumentar delay progresivamente (máx 60s)
-    reconnectDelay = Math.min(reconnectDelay + 5000, 60000)
-  })
+  setTimeout(() => {
+    createBot()
+  }, reconnectDelay)
+
+  reconnectDelay = Math.min(reconnectDelay + 5000, 60000)
+})
 
   bot.on("error", (err) => {
     console.log("⚠️ Error:", err.message)
