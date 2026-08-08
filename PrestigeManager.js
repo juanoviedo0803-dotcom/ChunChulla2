@@ -77,10 +77,15 @@ class PrestigeManager {
         `🟨 Prestige disponible encontrado en slot ${slot}`
       )
 
-      this.bot.clickWindow(slot, 0, 0)
-        .then(() => {
-          console.log("✅ Prestige seleccionado")
-        })
+     this.bot.clickWindow(slot, 0, 0)
+  .then(() => {
+    console.log("✅ Prestige seleccionado")
+
+    // Prestige realizado: permitir un nuevo ciclo
+    this.triggered = false
+
+    console.log("🔄 Nuevo ciclo de Prestige habilitado")
+  })
         .catch((err) => {
           console.log(
             "❌ Error al seleccionar Prestige:",
