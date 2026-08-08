@@ -1,4 +1,5 @@
 const mineflayer = require("mineflayer")
+const PrestigeManager = require("./PrestigeManager")
 
 let reconnectDelay = 10000 // empieza en 10s
 
@@ -9,6 +10,9 @@ function createBot() {
     username: "ChunChulla",
     version: "1.8.9"
   })
+  
+  const prestigeManager = new PrestigeManager(bot)
+prestigeManager.start()
 
   bot.on("login", () => {
     console.log("✅ Bot conectado al servidor")
