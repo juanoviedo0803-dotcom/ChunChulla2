@@ -1,26 +1,56 @@
 const mineflayer = require("mineflayer")
 const PrestigeManager = require("./PrestigeManager")
 
-let reconnectDelay = 10000 // empieza en 10s
+let reconnectDelay = 10000
+let botNumber = 0
 
 function createBot() {
+  botNumber++
+
+  const currentBot = botNumber
+
+  console.log(`🚀 Creando instancia de bot #${currentBot}`)
+
   const bot = mineflayer.createBot({
     host: "mc.ultranetwork.net",
     port: 25565,
     username: "ChunChulla",
     version: "1.8.9"
   })
-  
+
   const prestigeManager = new PrestigeManager(bot)
-prestigeManager.start()
+  prestigeManager.start()
 
   bot.on("login", () => {
-    console.log("✅ Bot conectado al servidor")
-    reconnectDelay = 10000 // resetear delay cuando conecta bien
+    console.log(`✅ Bot #${currentBot} conectado al servidor`)
+    reconnectDelay = 10000
   })
 
   bot.on("spawn", () => {
-    console.log("🎮 Bot apareció en el mundo")
+    console.log(`🎮 Bot #${currentBot} apareció en el mundo`)
+    
+    // ...
+  })
+
+  bot.on("end", () => {
+    prestigeManager.stop()
+
+    console.log(`❌ Bot #${currentBot} desconectado`)
+    console.log(
+      `🔄 Bot #${currentBot}: reconectando en ${reconnectDelay / 1000}s...`
+    )
+
+    setTimeout(() => {
+      createBot()
+    }, reconnectDelay)
+
+    reconnectDelay = Math.min(reconnectDelay + 5000, 60000)
+  })
+
+  bot.on("error", (err) => {
+    console.log(`⚠️ Bot #${currentBot} error:`, err.message)
+  })
+}
 
     setTimeout(() => {
       bot.chat("/login juan123")
