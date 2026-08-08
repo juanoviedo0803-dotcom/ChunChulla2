@@ -42,9 +42,17 @@ function createBot() {
 
   // Menú inicial para seleccionar Prisión
   bot.on("windowOpen", (window) => {
-    console.log("📦 Menú abierto")
+  const title = String(window.title)
 
-    setTimeout(() => {
+  // Este menú pertenece exclusivamente al PrestigeManager
+  if (title.includes("Pickaxe Prestiges")) {
+    return
+  }
+
+  console.log("📦 Menú abierto")
+
+  setTimeout(() => {
+    
       const item = window.slots.find(
         (i) => i && i.name.includes("pickaxe")
       )
