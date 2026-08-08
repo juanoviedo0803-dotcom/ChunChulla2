@@ -38,25 +38,51 @@ class PrestigeManager {
       this.triggered = true
 
       console.log("🚀 Nivel 300 alcanzado. Enviando /pp...")
-
       this.bot.chat("/pp")
     }
   }
 
   onWindowOpen(window) {
-    console.log("📦 ¡MENÚ ABIERTO!")
-    console.log("Título:", window.title)
+    const title = String(window.title)
+
+    if (!title.includes("Pickaxe Prestiges")) {
+      return
+    }
+
+    console.log("🟨 Menú de Prestige detectado")
 
     setTimeout(() => {
-      console.log("🔎 Inspeccionando items del menú...")
+      const item = window.slots.find(
+        (i) =>
+          i &&
+          i.name === "stained_glass_pane" &&
+          i.metadata === 4
+      )
 
-      window.slots.forEach((item, slot) => {
-        if (!item) return
+      if (!item) {
+        console.log("❌ No se encontró ningún Prestige amarillo")
+        this.triggered = false
+        return
+      }
 
-        console.log(
-          `Slot ${slot} | name=${item.name} | displayName=${item.displayName} | metadata=${item.metadata}`
-        )
-      })
+      const slot = window.slots.indexOf(item)
+
+      console.log(
+        `🟨 Prestige disponible encontrado en slot ${slot}`
+      )
+
+      this.bot.clickWindow(slot, 0, 0)
+        .then(() => {
+          console.log("✅ Prestige seleccionado")
+        })
+        .catch((err) => {
+          console.log(
+            "❌ Error al seleccionar Prestige:",
+            err.message
+          )
+
+          this.triggered = false
+        })
     }, 1500)
   }
 }
