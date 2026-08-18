@@ -34,11 +34,11 @@ class PrestigeManager {
 
     console.log(`⛏️ Pico nivel ${level}`)
 
-    if (level >= 400 && !this.triggered) {
+    if (level >= 75 && !this.triggered) {
       this.triggered = true
 
       console.log(
-        "🚀 Nivel 400 alcanzado. Enviando /pp..."
+        "🚀 Nivel 75 alcanzado. Enviando /pp..."
       )
 
       this.bot.chat("/pp")
