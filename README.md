@@ -1,14 +1,14 @@
 # ChunChulla
 
 Bot AFK de Minecraft (mineflayer) para **JartexNetwork**, modo **Prison**, versión **1.8.9**.
+La cuenta del bot es **`Sephera`**; la del dueño es **`lematadorsss`**.
 Su única obligación es **entrar al modo de juego y quedarse ahí**: usa la brújula,
 clickea Prison en el menú `Server Selector`, espera la línea del chat que lo confirma
 y, si no llega, reintenta; agotados los intentos cierra la conexión para empezar de cero.
 
 No hay visión ni OCR: solo eventos del protocolo (ventana abierta y texto del chat).
-
-Todo lo que dice el servidor se escribe en el log con prefijo `💬`, que es la
-evidencia que se usa para confirmar la entrada.
+El chat se procesa en silencio; al log solo van los eventos del bot y lo que dispara
+una regla: petición de `/login`, menú de entrada, clic del modo, confirmación y expulsión.
 
 ## Configuración
 
@@ -44,6 +44,19 @@ npm test        # 17 pruebas del ciclo de entrada y del login bajo demanda, sin 
 npm run dev     # local: carga .env si existe
 npm start       # despliegue: las variables llegan por entorno, sin .env
 ```
+
+## Consola: mandar comandos como el bot
+
+Mientras corre, cada línea que escribas en esa consola **se envía como el bot** a Jartex:
+
+```
+/help          ->  ⌨️ Enviado: /help
+```
+
+- Se envía tal cual: si quieres un comando, empieza por `/`; si no, sale como mensaje de chat.
+- Sin conexión no se envía (`⌨️ Sin conexión`).
+- En el log solo queda el nombre del comando, nunca los argumentos: una contraseña no se registra.
+- `Ctrl+C` cierra el bot.
 
 ## Verificado contra el servidor real
 

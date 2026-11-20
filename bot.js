@@ -3,6 +3,7 @@
 const mineflayer = require("mineflayer")
 const { loadConfig } = require("./config")
 const { chatText } = require("./chatText")
+const { attachConsoleInput } = require("./consoleInput")
 const AuthManager = require("./AuthManager")
 const EntryManager = require("./EntryManager")
 
@@ -13,6 +14,7 @@ const RECONNECT_MAX_MS = 60000
 const config = loadConfig()
 
 let reconnectDelay = RECONNECT_MIN_MS
+let currentBot = null
 
 function createBot() {
   console.log(`🚀 Conectando a ${config.host}:${config.port} como ${config.username}`)
@@ -27,11 +29,11 @@ function createBot() {
   const authManager = new AuthManager(bot, config)
   const entryManager = new EntryManager(bot, config)
 
-  // Todo lo que dice el servidor va al log: es la única evidencia de entrada.
-  // El login se responde solo cuando el chat lo pide.
-  bot.on("messagestr", (message) => {
-    console.log(`💬 ${message}`)
+  currentBot = bot
 
+  // El chat se procesa pero no se imprime: solo interesa lo que dispara una regla
+  // (petición de /login, confirmación de entrada) y los eventos del bot.
+  bot.on("messagestr", (message) => {
     if (authManager.onMessage(message)) return
 
     entryManager.onMessage(String(message))
@@ -71,5 +73,8 @@ function createBot() {
     console.log("⚠️ Error:", err.message)
   })
 }
+
+// Consola: lo que escribas aquí sale como el bot. Registrada una sola vez.
+attachConsoleInput(() => currentBot)
 
 createBot()
