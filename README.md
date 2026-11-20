@@ -41,7 +41,8 @@ confirmación posible: el bot avisa al arrancar y reconecta en vez de dar la ent
 ```bash
 npm install
 npm test        # 17 pruebas del ciclo de entrada y del login bajo demanda, sin red
-npm start
+npm run dev     # local: carga .env si existe
+npm start       # despliegue: las variables llegan por entorno, sin .env
 ```
 
 ## Verificado contra el servidor real
