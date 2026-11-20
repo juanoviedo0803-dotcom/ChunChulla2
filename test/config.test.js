@@ -24,6 +24,23 @@ test("por defecto apunta a JartexNetwork 1.8.9 con el flujo observado", () => {
   assert.match("Server Queue ▏ You are queued to join Prison", config.entryProgressMatch)
 })
 
+test("ignora HOST/PORT que define la plataforma de despliegue", () => {
+  // Railway exporta PORT=8080 y HOST propios: no deben pisar el servidor del juego.
+  const config = loadConfig(env({ PORT: "8080", HOST: "0.0.0.0", VERSION: "1.21.4" }))
+
+  assert.strictEqual(config.host, "play.jartexnetwork.com")
+  assert.strictEqual(config.port, 25565)
+  assert.strictEqual(config.version, "1.8.9")
+})
+
+test("MC_PORT/MC_HOST/MC_VERSION sí se respetan", () => {
+  const config = loadConfig(env({ MC_PORT: "25566", MC_HOST: "otro.host", MC_VERSION: "1.20.4" }))
+
+  assert.strictEqual(config.host, "otro.host")
+  assert.strictEqual(config.port, 25566)
+  assert.strictEqual(config.version, "1.20.4")
+})
+
 test("sin PASSWORD no hay comando de login", () => {
   const config = loadConfig(env())
 

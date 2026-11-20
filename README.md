@@ -20,9 +20,9 @@ Los valores del servidor ya vienen puestos; solo `BOT_USERNAME` es obligatoria.
 | `BOT_USERNAME` | sí | — | nombre de la cuenta (no `USERNAME`: Windows ya define esa variable) |
 | `PASSWORD` | no | — | solo si el servidor pide `/login`; vacío = no se autentica |
 | `LOGIN_COMMAND` | no | `/login <PASSWORD>` | comando que se envía cuando el chat pide `/login` |
-| `HOST` | no | `play.jartexnetwork.com` | host del servidor |
-| `PORT` | no | `25565` | puerto |
-| `VERSION` | no | `1.8.9` | versión de Minecraft |
+| `MC_HOST` | no | `play.jartexnetwork.com` | host del servidor |
+| `MC_PORT` | no | `25565` | puerto |
+| `MC_VERSION` | no | `1.8.9` | versión de Minecraft |
 | `ENTRY_COMMAND` | no | — | comando de chat que abre el modo (alternativa al hotbar) |
 | `ENTRY_HOTBAR_SLOT` | no | `0` | slot del hotbar con la brújula (0-8) |
 | `ENTRY_MENU_MATCH` | no | `Server Selector` | subcadena del título de la ventana a clickear |

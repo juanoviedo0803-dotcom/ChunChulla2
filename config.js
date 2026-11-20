@@ -69,9 +69,11 @@ function loadConfig(env = process.env) {
   const password = env.PASSWORD || null
 
   return Object.freeze({
-    host: env.HOST || DEFAULTS.host,
-    port: readPositiveInt(env.PORT, DEFAULTS.port, "PORT"),
-    version: env.VERSION || DEFAULTS.version,
+    // Nombres con prefijo MC_: Railway (y otros hosts) definen PORT/HOST por su
+    // cuenta y el bot terminaba conectando a su puerto web en vez del del juego.
+    host: env.MC_HOST || DEFAULTS.host,
+    port: readPositiveInt(env.MC_PORT, DEFAULTS.port, "MC_PORT"),
+    version: env.MC_VERSION || DEFAULTS.version,
     username: env.BOT_USERNAME,
 
     // Autenticación bajo demanda: el chat pide "/login" y ahí se responde.
