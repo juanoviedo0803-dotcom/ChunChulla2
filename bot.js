@@ -1,102 +1,69 @@
-const mineflayer = require("mineflayer")
-const PrestigeManager = require("./PrestigeManager")
+"use strict"
 
-let reconnectDelay = 10000
+const mineflayer = require("mineflayer")
+const { loadConfig } = require("./config")
+const AuthManager = require("./AuthManager")
+const EntryManager = require("./EntryManager")
+
+const SPAWN_DELAY_MS = 3000
+const RECONNECT_MIN_MS = 10000
+const RECONNECT_MAX_MS = 60000
+
+const config = loadConfig()
+
+let reconnectDelay = RECONNECT_MIN_MS
 
 function createBot() {
-  console.log("🚀 Creando bot...")
+  console.log(`🚀 Conectando a ${config.host}:${config.port} como ${config.username}`)
 
   const bot = mineflayer.createBot({
-    host: "mc.ultranetwork.net",
-    port: 25565,
-    username: "Sephera",
-    version: "1.8.9"
+    host: config.host,
+    port: config.port,
+    username: config.username,
+    version: config.version
   })
 
-  const prestigeManager = new PrestigeManager(bot)
-  prestigeManager.start()
+  const authManager = new AuthManager(bot, config)
+  const entryManager = new EntryManager(bot, config)
+
+  // Todo lo que dice el servidor va al log: es la única evidencia de entrada.
+  // El login se responde solo cuando el chat lo pide.
+  bot.on("messagestr", (message) => {
+    console.log(`💬 ${message}`)
+
+    if (authManager.onMessage(message)) return
+
+    entryManager.onMessage(String(message))
+  })
 
   bot.on("login", () => {
-    console.log("✅ Bot conectado al servidor")
+    console.log("✅ Conectado al servidor")
 
-    reconnectDelay = 10000
+    reconnectDelay = RECONNECT_MIN_MS
   })
 
   bot.on("spawn", () => {
-    console.log("🎮 Bot apareció en el mundo")
+    const hotbar = bot.inventory
+      ? bot.inventory.slots.slice(36, 45).map((item) => (item ? item.name : "-")).join(" ")
+      : "sin inventario"
 
-    setTimeout(() => {
-      bot.chat("/login 41715272")
-      console.log("🔑 Enviando /login")
-    }, 3000)
+    console.log(`🎮 Apareció en el mundo | hotbar: ${hotbar}`)
 
-    setTimeout(() => {
-      try {
-        bot.activateItem()
-        console.log("🧭 Usando brújula")
-      } catch (e) {
-        console.log("⚠️ No se pudo usar la brújula")
-      }
-    }, 7000)
+    setTimeout(() => entryManager.start(), SPAWN_DELAY_MS)
   })
 
-  // Menú inicial para seleccionar Prisión
-  bot.on("windowOpen", (window) => {
-  const title = String(window.title)
-
-  // Este menú pertenece exclusivamente al PrestigeManager
-  if (title.includes("Pickaxe Prestiges")) {
-    return
-  }
-
-  console.log("📦 Menú abierto")
-
-  setTimeout(() => {
-    
-      const item = window.slots.find(
-        (i) => i && i.name.includes("pickaxe")
-      )
-
-      if (item) {
-        const slot = window.slots.indexOf(item)
-
-        console.log(
-          `⛏️ Pico encontrado en slot ${slot}, seleccionando...`
-        )
-
-        bot.clickWindow(slot, 0, 0)
-          .then(() => {
-            console.log("✅ Modo seleccionado")
-          })
-          .catch((err) => {
-            console.log(
-              "❌ Error al hacer click:",
-              err.message
-            )
-          })
-
-      } else {
-        console.log("⚠️ No se encontró ningún pico en el menú")
-      }
-    }, 1500)
+  bot.on("kicked", (reason) => {
+    console.log("🚫 Expulsado:", reason)
   })
 
   bot.on("end", () => {
-    prestigeManager.stop()
+    entryManager.stop()
 
-    console.log("❌ Bot desconectado")
-    console.log(
-      `🔄 Reconectando en ${reconnectDelay / 1000}s...`
-    )
+    console.log(`❌ Desconectado; reconectando en ${reconnectDelay / 1000}s`)
 
-    setTimeout(() => {
-      createBot()
-    }, reconnectDelay)
+    setTimeout(createBot, reconnectDelay)
 
-    reconnectDelay = Math.min(
-      reconnectDelay + 5000,
-      60000
-    )
+    reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS)
   })
 
   bot.on("error", (err) => {
@@ -104,10 +71,4 @@ function createBot() {
   })
 }
 
-// Iniciar bot
 createBot()
-
-// Mantener proceso vivo en Railway
-setInterval(() => {
-  // keep alive
-}, 30000)
