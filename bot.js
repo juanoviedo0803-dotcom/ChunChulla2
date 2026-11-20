@@ -2,6 +2,7 @@
 
 const mineflayer = require("mineflayer")
 const { loadConfig } = require("./config")
+const { chatText } = require("./chatText")
 const AuthManager = require("./AuthManager")
 const EntryManager = require("./EntryManager")
 
@@ -53,7 +54,7 @@ function createBot() {
   })
 
   bot.on("kicked", (reason) => {
-    console.log("🚫 Expulsado:", reason)
+    console.log("🚫 Expulsado:", chatText(reason))
   })
 
   bot.on("end", () => {
