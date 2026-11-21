@@ -57,6 +57,10 @@ function createBot() {
 
   bot.on("kicked", (reason) => {
     console.log("🚫 Expulsado:", chatText(reason))
+
+    // Un servidor que acaba de expulsar (p. ej. "already logged on") no quiere
+    // reintentos rápidos: el siguiente intento espera el máximo.
+    reconnectDelay = RECONNECT_MAX_MS
   })
 
   bot.on("end", () => {
