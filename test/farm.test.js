@@ -49,7 +49,7 @@ test("las esquinas se pueden dar en cualquier orden", () => {
 
 test("rechaza coordenadas inválidas y áreas enormes", () => {
   assert.match(parseArea("10 20", 64).error, /uso/)
-  assert.match(parseArea("10 20 x 22", 64).error, /enteras/)
+  assert.match(parseArea("x1 z1 x2 z2", 64).error, /números, no los nombres/)
   assert.match(parseArea("0 0 100 100", 64).error, /máximo/)
 })
 

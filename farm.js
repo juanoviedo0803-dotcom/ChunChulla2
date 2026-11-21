@@ -58,7 +58,7 @@ function parseArea(arg, y, { maxArea = MAX_AREA } = {}) {
   const [x1, z1, x2, z2] = nums.map(Number)
 
   if ([x1, z1, x2, z2].some((n) => !Number.isInteger(n))) {
-    return { error: "las coordenadas deben ser enteras" }
+    return { error: "las coordenadas deben ser números, no los nombres: p. ej. !fill 3936 94588 3944 94596" }
   }
 
   const width = Math.abs(x2 - x1) + 1
