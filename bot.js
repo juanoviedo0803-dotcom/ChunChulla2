@@ -4,6 +4,7 @@ const mineflayer = require("mineflayer")
 const { loadConfig } = require("./config")
 const { chatText } = require("./chatText")
 const { attachConsoleInput } = require("./consoleInput")
+const { FarmManager } = require("./farm")
 const AuthManager = require("./AuthManager")
 const EntryManager = require("./EntryManager")
 
@@ -15,6 +16,7 @@ const config = loadConfig()
 
 let reconnectDelay = RECONNECT_MIN_MS
 let currentBot = null
+let currentFarm = null
 
 function createBot() {
   console.log(`🚀 Conectando a ${config.host}:${config.port} como ${config.username}`)
@@ -30,6 +32,7 @@ function createBot() {
   const entryManager = new EntryManager(bot, config)
 
   currentBot = bot
+  currentFarm = new FarmManager(bot)
 
   // El chat se procesa pero no se imprime: solo interesa lo que dispara una regla
   // (petición de /login, confirmación de entrada) y los eventos del bot.
@@ -78,7 +81,34 @@ function createBot() {
   })
 }
 
-// Consola: lo que escribas aquí sale como el bot. Registrada una sola vez.
-attachConsoleInput(() => currentBot)
+// Consola: lo que escribas aquí sale como el bot; con "!" se ejecuta en el bot.
+attachConsoleInput(
+  () => currentBot,
+  process.stdin,
+  (line) => {
+    const [command] = line.split(/\s+/)
+    const farm = currentFarm
+
+    if (!farm || !currentBot || !currentBot.player) {
+      console.log("⌨️ Sin conexión: el comando no se ejecutó")
+
+      return
+    }
+
+    if (command === "scan") {
+      farm.scan()
+
+      return
+    }
+
+    if (command === "farm") {
+      farm.till().catch((err) => console.log(`⚠️ Error en la granja: ${err.message}`))
+
+      return
+    }
+
+    console.log(`⌨️ Comando local desconocido: ${command} (usa !scan o !farm)`)
+  }
+)
 
 createBot()

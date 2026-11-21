@@ -2,16 +2,23 @@
 
 const readline = require("node:readline")
 
-// Consola local -> chat del bot: cada línea escrita aquí sale como el bot.
+// Consola local -> chat del bot: cada línea escrita aquí sale como el bot, salvo
+// las que empiezan por "!", que se ejecutan en el bot (p. ej. "!scan").
 // El lector se registra UNA vez y pide el bot vivo en cada línea, así sobrevive
 // a las reconexiones (cada reconexión crea una instancia nueva de mineflayer).
-function attachConsoleInput(getBot, input = process.stdin) {
+function attachConsoleInput(getBot, input = process.stdin, onLocalCommand = null) {
   const rl = readline.createInterface({ input, terminal: false })
 
   rl.on("line", (line) => {
     const text = line.trim()
 
     if (!text) return
+
+    if (onLocalCommand && text.startsWith("!")) {
+      onLocalCommand(text.slice(1).trim())
+
+      return
+    }
 
     const bot = getBot()
 

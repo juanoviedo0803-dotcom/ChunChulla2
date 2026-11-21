@@ -58,6 +58,15 @@ Mientras corre, cada línea que escribas en esa consola **se envía como el bot*
 - En el log solo queda el nombre del comando, nunca los argumentos: una contraseña no se registra.
 - `Ctrl+C` cierra el bot.
 
+## Granja (`!scan` y `!farm`)
+
+Comandos locales en la consola (empiezan por `!`, no se envían al servidor):
+
+- `!scan` — detecta la isla bajo los pies del bot (región sólida conectada) e informa cuántas columnas hay y cuántas son arables (`dirt`/`grass_block`).
+- `!farm` — ara con la azada toda la tierra de la isla: se coloca a ≤4 bloques, camina hacia lo que queda lejos, rompe la hierba alta que estorbe y cuenta lo que no pudo alcanzar.
+
+Necesita una azada en el inventario; sin ella avisa y no hace nada. La arena no se ara: solo `dirt`/`grass_block` se convierten en farmland.
+
 ## Verificado contra el servidor real
 
 Corrida del 2026-11-20 con un cliente 1.8.9: el chat pidió `/login`, se respondió y el
