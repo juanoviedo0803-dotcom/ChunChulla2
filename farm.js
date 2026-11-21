@@ -252,6 +252,31 @@ class FarmManager {
     return this.bot.inventory.items().find((item) => item.name === "dirt" || item.name === "grass_block")
   }
 
+  // El click de inventario puede quedarse sin confirmación del servidor; se
+  // reintenta y, si ya está en la mano, no se toca nada.
+  async holdItem(name, attempts = 3) {
+    const matches = (item) => (name.endsWith("_hoe") ? Boolean(item) && item.name.endsWith("_hoe") : item && item.name === name)
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      if (matches(this.bot.heldItem)) return true
+
+      const item = this.bot.inventory.items().find((candidate) => matches(candidate))
+
+      if (!item) return false
+
+      try {
+        await this.bot.equip(item, "hand")
+
+        return true
+      } catch (err) {
+        console.log(`⚠️ No se pudo equipar ${name} (${err.message}); reintento ${attempt}/${attempts}`)
+        await new Promise((resolve) => setTimeout(resolve, 600))
+      }
+    }
+
+    return matches(this.bot.heldItem)
+  }
+
   async runFill(columns) {
     if (!this.dirtItem()) {
       console.log("⚠️ No hay tierra en el inventario: no se puede rellenar")
@@ -264,7 +289,13 @@ class FarmManager {
     // Cada pasada rellena lo que da a un bloque ya sólido, así el borde avanza.
     // Se corta cuando una pasada no puede colocar nada.
     for (let pass = 0; pass < 20; pass += 1) {
-      const missing = columns.filter((position) => !this.isSolid(position))
+      // Solo se rellena lo que se ve vacío de verdad: una columna sin cargar
+      // (`blockAt` null) no es un hueco, es información que falta.
+      const missing = columns.filter((position) => {
+        const block = this.bot.blockAt(this.toVec(position))
+
+        return Boolean(block) && NOT_FLOOR.has(block.name)
+      })
 
       if (missing.length === 0) {
         console.log(`🧱 Relleno completo: ${placed} bloques colocados`)
@@ -295,15 +326,11 @@ class FarmManager {
         return
       }
 
-      const item = this.dirtItem()
-
-      if (!item) {
-        console.log(`⚠️ Se acabó la tierra: ${placed} colocados, ${missing.length} huecos`)
+      if (!(await this.holdItem("dirt"))) {
+        console.log("⚠️ No se pudo poner la tierra en la mano; se detiene el relleno")
 
         return
       }
-
-      await this.bot.equip(item, "hand")
 
       for (const step of plan) {
         if (!this.dirtItem()) break
@@ -356,7 +383,7 @@ class FarmManager {
       return
     }
 
-    await this.bot.equip(hoe, "hand")
+    await this.holdItem(hoe.name)
 
     let tilled = 0
     let unreachable = 0
