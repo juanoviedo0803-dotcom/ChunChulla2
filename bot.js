@@ -108,7 +108,13 @@ attachConsoleInput(
       return
     }
 
-    console.log(`⌨️ Comando local desconocido: ${command} (usa !scan o !farm, con o sin "x1 z1 x2 z2")`)
+    if (command === "fill") {
+      farm.fill(arg).catch((err) => console.log(`⚠️ Error en el relleno: ${err.message}`))
+
+      return
+    }
+
+    console.log(`⌨️ Comando local desconocido: ${command} (usa !scan, !farm o !fill, con o sin "x1 z1 x2 z2")`)
   }
 )
 

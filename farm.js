@@ -83,6 +83,39 @@ function withinReach(from, to) {
   return Math.abs(to.x - from.x) <= REACH && Math.abs(to.z - from.z) <= REACH && Math.abs(to.y - from.y) <= REACH
 }
 
+const NEIGHBORS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1]
+]
+
+// En el vacío un bloque sólo se puede poner contra un vecino sólido: de ahí sale
+// la cara sobre la que hay que hacer clic. Sin vecino alcanzable, no hay plan.
+function planFills(columns, isSolid, isReachable) {
+  const planned = []
+
+  for (const position of columns) {
+    if (isSolid(position)) continue
+
+    const reference = NEIGHBORS.map(([dx, dz]) => ({
+      x: position.x + dx,
+      y: position.y,
+      z: position.z + dz
+    })).find(isSolid)
+
+    if (!reference || !isReachable(reference)) continue
+
+    planned.push({
+      target: position,
+      reference,
+      face: { x: position.x - reference.x, y: 0, z: position.z - reference.z }
+    })
+  }
+
+  return planned
+}
+
 class FarmManager {
   constructor(bot) {
     this.bot = bot
@@ -141,9 +174,20 @@ class FarmManager {
     }
 
     const arable = [...ARABLE].reduce((sum, name) => sum + (counts[name] || 0), 0)
+    const base = this.bot.entity.position.floored()
+    const solid = columns.filter((position) => this.isSolid(position))
 
-    console.log(`🗺️ ${columns.length} columnas | aranbles: ${arable}`)
+    console.log(`🗺️ ${columns.length} columnas | aranbles: ${arable} | bot en ${base.x},${base.y},${base.z}`)
     console.log(`   ${JSON.stringify(counts)}`)
+
+    if (solid.length > 0) {
+      const xs = solid.map((position) => position.x)
+      const zs = solid.map((position) => position.z)
+
+      console.log(
+        `   isla: x ${Math.min(...xs)}..${Math.max(...xs)} | z ${Math.min(...zs)}..${Math.max(...zs)}`
+      )
+    }
   }
 
   async till(arg) {
@@ -170,6 +214,116 @@ class FarmManager {
       this.sneak(false)
       this.busy = false
     }
+  }
+
+  async fill(arg) {
+    if (this.busy) {
+      console.log("⏳ Ya hay una tarea de granja en curso")
+
+      return
+    }
+
+    const { columns, error } = this.resolveColumns(arg)
+
+    if (error) {
+      console.log(`⚠️ ${error}`)
+
+      return
+    }
+
+    this.busy = true
+    this.sneak(true)
+
+    try {
+      await this.runFill(columns)
+    } finally {
+      this.sneak(false)
+      this.busy = false
+    }
+  }
+
+  isSolid(position) {
+    const block = this.bot.blockAt(this.toVec(position))
+
+    return Boolean(block) && !NOT_FLOOR.has(block.name)
+  }
+
+  dirtItem() {
+    return this.bot.inventory.items().find((item) => item.name === "dirt" || item.name === "grass_block")
+  }
+
+  async runFill(columns) {
+    if (!this.dirtItem()) {
+      console.log("⚠️ No hay tierra en el inventario: no se puede rellenar")
+
+      return
+    }
+
+    let placed = 0
+
+    // Cada pasada rellena lo que da a un bloque ya sólido, así el borde avanza.
+    // Se corta cuando una pasada no puede colocar nada.
+    for (let pass = 0; pass < 20; pass += 1) {
+      const missing = columns.filter((position) => !this.isSolid(position))
+
+      if (missing.length === 0) {
+        console.log(`🧱 Relleno completo: ${placed} bloques colocados`)
+
+        return
+      }
+
+      const plan = planFills(
+        missing,
+        (position) => this.isSolid(position),
+        (position) => withinReach(this.bot.entity.position, position)
+      )
+
+      if (plan.length === 0) {
+        const nearest = missing.reduce((best, position) =>
+          Math.hypot(position.x - this.bot.entity.position.x, position.z - this.bot.entity.position.z) <
+          Math.hypot(best.x - this.bot.entity.position.x, best.z - this.bot.entity.position.z)
+            ? position
+            : best
+        )
+
+        const arrived = await this.safeWalkTo(nearest)
+
+        if (arrived) continue
+
+        console.log(`🧱 Colocados ${placed}; quedan ${missing.length} huecos y no se puede avanzar sin caer. Acerca el bot.`)
+
+        return
+      }
+
+      const item = this.dirtItem()
+
+      if (!item) {
+        console.log(`⚠️ Se acabó la tierra: ${placed} colocados, ${missing.length} huecos`)
+
+        return
+      }
+
+      await this.bot.equip(item, "hand")
+
+      for (const step of plan) {
+        if (!this.dirtItem()) break
+
+        const referenceBlock = this.bot.blockAt(this.toVec(step.reference))
+
+        if (!referenceBlock || NOT_FLOOR.has(referenceBlock.name)) continue
+
+        try {
+          await this.bot.placeBlock(referenceBlock, new Vec3(step.face.x, 0, step.face.z))
+          placed += 1
+        } catch (err) {
+          console.log(`⚠️ No se pudo colocar en ${step.target.x},${step.target.z}: ${err.message}`)
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, USE_DELAY_MS))
+      }
+    }
+
+    console.log(`🧱 Colocados ${placed} (límite de pasadas)`)
   }
 
   // En una isla flotante un paso de más es caer al vacío: se trabaja agachado.
@@ -240,6 +394,33 @@ class FarmManager {
     console.log(`🌱 Arado: ${tilled} | fuera de alcance: ${unreachable}`)
   }
 
+  // Avanzar hacia el borde sólo si la columna de delante es sólida: en una isla
+  // flotante un paso de más es caer al vacío. Devuelve false si no hay suelo.
+  async safeWalkTo(target) {
+    const started = Date.now()
+
+    while (Date.now() - started < WALK_TIMEOUT_MS) {
+      const pos = this.bot.entity.position
+
+      if (Math.hypot(target.x + 0.5 - pos.x, target.z + 0.5 - pos.z) < 2) return true
+
+      const feet = pos.floored()
+      const dx = Math.sign(target.x - feet.x)
+      const dz = Math.sign(target.z - feet.z)
+      const ahead =
+        dx === 0 && dz === 0 ? null : this.bot.blockAt(new Vec3(feet.x + dx, feet.y - 1, feet.z + dz))
+
+      if (!ahead || NOT_FLOOR.has(ahead.name)) return false
+
+      await this.bot.lookAt(new Vec3(target.x + 0.5, pos.y, target.z + 0.5), true)
+      this.bot.setControlState("forward", true)
+      await new Promise((resolve) => setTimeout(resolve, WALK_STEP_MS))
+      this.bot.setControlState("forward", false)
+    }
+
+    return false
+  }
+
   // Caminar en línea recta hacia un bloque: basta en una plataforma plana y
   // evita meter un pathfinder como dependencia.
   async walkTo(target) {
@@ -265,4 +446,4 @@ class FarmManager {
   }
 }
 
-module.exports = { FarmManager, collectFootprint, parseArea, withinReach }
+module.exports = { FarmManager, collectFootprint, parseArea, planFills, withinReach }

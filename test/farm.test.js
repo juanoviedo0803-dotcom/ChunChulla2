@@ -3,7 +3,7 @@
 const test = require("node:test")
 const assert = require("node:assert")
 
-const { collectFootprint, parseArea, withinReach } = require("../farm")
+const { collectFootprint, parseArea, planFills, withinReach } = require("../farm")
 
 test("la isla es la región sólida conectada bajo los pies", () => {
   // Isla de 5x5 rodeada de aire.
@@ -51,6 +51,35 @@ test("rechaza coordenadas inválidas y áreas enormes", () => {
   assert.match(parseArea("10 20", 64).error, /uso/)
   assert.match(parseArea("10 20 x 22", 64).error, /enteras/)
   assert.match(parseArea("0 0 100 100", 64).error, /máximo/)
+})
+
+test("un hueco se rellena contra el vecino sólido que lo toca", () => {
+  // Sólido en x=0; huecos en x=1 y x=2.
+  const solidAt = (p) => p.x === 0
+  const columns = [
+    { x: 1, y: 64, z: 0 },
+    { x: 2, y: 64, z: 0 }
+  ]
+
+  const plan = planFills(columns, solidAt, () => true)
+
+  // Sólo el hueco pegado al sólido tiene de dónde colgarse.
+  assert.strictEqual(plan.length, 1)
+  assert.deepStrictEqual(plan[0].target, { x: 1, y: 64, z: 0 })
+  assert.deepStrictEqual(plan[0].reference, { x: 0, y: 64, z: 0 })
+  assert.deepStrictEqual(plan[0].face, { x: 1, y: 0, z: 0 })
+})
+
+test("no planifica nada si el vecino sólido está fuera de alcance", () => {
+  const plan = planFills([{ x: 1, y: 64, z: 0 }], (p) => p.x === 0, () => false)
+
+  assert.deepStrictEqual(plan, [])
+})
+
+test("ignora las columnas que ya son sólidas", () => {
+  const plan = planFills([{ x: 0, y: 64, z: 0 }], () => true, () => true)
+
+  assert.deepStrictEqual(plan, [])
 })
 
 test("alcance de 4 bloques en los tres ejes", () => {
