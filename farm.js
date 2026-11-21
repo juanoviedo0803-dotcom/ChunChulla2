@@ -9,6 +9,8 @@ const REACH = 4
 const WALK_STEP_MS = 100
 const WALK_TIMEOUT_MS = 6000
 const USE_DELAY_MS = 250
+const STEP_MS = 120
+const STEP_COUNT = 8
 
 const ARABLE = new Set(["dirt", "grass_block"])
 const PLANT = new Set(["grass", "fern", "tall_grass", "large_fern"])
@@ -89,20 +91,6 @@ const NEIGHBORS = [
   [0, 1],
   [0, -1]
 ]
-
-// Caras del protocolo (1.8): 0 -Y, 1 +Y, 2 -Z, 3 +Z, 4 -X, 5 +X.
-const FACE_DIRECTION = {
-  "0,-1,0": 0,
-  "0,1,0": 1,
-  "0,0,-1": 2,
-  "0,0,1": 3,
-  "-1,0,0": 4,
-  "1,0,0": 5
-}
-
-function faceDirection(face) {
-  return FACE_DIRECTION[`${face.x},${face.y},${face.z}`]
-}
 
 // En el vacío un bloque sólo se puede poner contra un vecino sólido: de ahí sale
 // la cara sobre la que hay que hacer clic. Sin vecino alcanzable, no hay plan.
@@ -276,21 +264,10 @@ class FarmManager {
     return this.bot.inventory.items().find((item) => item.name === "dirt" || item.name === "grass_block")
   }
 
-  // Paquete crudo: el destino puede no estar cargado en el cliente, así que
-  // mineflayer no puede validarlo ni esperar confirmación. El servidor decide.
-  placeAgainst(reference, face) {
-    const direction = faceDirection(face)
-
-    if (direction === undefined) return false
-
-    this.bot._client.write("block_place", {
-      location: { x: reference.x, y: reference.y, z: reference.z },
-      direction,
-      heldItem: this.bot.heldItem || { blockId: -1 },
-      cursorX: 128,
-      cursorY: 128,
-      cursorZ: 128
-    })
+  // Paquete crudo vía la propia librería: `_genericPlace` manda el block_place
+  // sin validar el destino (que puede no estar cargado) ni esperar confirmación.
+  async placeAgainst(referenceBlock, face) {
+    await this.bot._genericPlace(referenceBlock, new Vec3(face.x, 0, face.z), { forceLook: true })
 
     return true
   }
@@ -339,6 +316,7 @@ class FarmManager {
     let placed = 0
     let blind = 0
     const attempted = new Set()
+    const placedColumns = []
 
     // Cada pasada rellena lo que da a un bloque ya sólido, así el borde avanza.
     // Se corta cuando una pasada no coloca nada.
@@ -373,11 +351,22 @@ class FarmManager {
             : best
         )
 
-        const arrived = await this.safeWalkTo(nearest)
+        if (await this.safeWalkTo(nearest)) continue
 
-        if (arrived) continue
+        // Sobre una columna que acabamos de rellenar no hay "suelo conocido",
+        // pero sí existe en el servidor: se avanza a pasos hasta ella.
+        const stepTarget = placedColumns.reduce((best, position) => {
+          if (!best) return position
 
-        console.log(`🧱 Colocados ${placed}; quedan ${missing.length} huecos y no se puede avanzar sin caer. Acerca el bot.`)
+          const distance = Math.hypot(position.x - this.bot.entity.position.x, position.z - this.bot.entity.position.z)
+          const bestDistance = Math.hypot(best.x - this.bot.entity.position.x, best.z - this.bot.entity.position.z)
+
+          return distance < bestDistance ? position : best
+        }, null)
+
+        if (stepTarget && (await this.stepTo(stepTarget))) continue
+
+        console.log(`🧱 Colocados ${placed}; quedan ${missing.length} huecos y no se puede avanzar. Acerca el bot.`)
 
         return
       }
@@ -409,9 +398,9 @@ class FarmManager {
 
         try {
           if (kind === "unknown") {
-            // La columna no existe para el cliente: se manda el paquete contra
-            // el borde sólido y decide el servidor. Sin confirmación posible.
-            this.placeAgainst(step.reference, step.face)
+            // La columna no existe para el cliente: el paquete sale igualmente y
+            // decide el servidor. Sin confirmación posible.
+            await this.placeAgainst(referenceBlock, step.face)
             blind += 1
           } else {
             await this.bot.placeBlock(referenceBlock, new Vec3(step.face.x, 0, step.face.z))
@@ -419,6 +408,7 @@ class FarmManager {
 
           placed += 1
           placedThisPass += 1
+          placedColumns.push(step.target)
         } catch (err) {
           console.log(`⚠️ No se pudo colocar en ${step.target.x},${step.target.z}: ${err.message}`)
         }
@@ -434,6 +424,39 @@ class FarmManager {
     }
 
     console.log(`🧱 Colocados ${placed} (límite de pasadas)`)
+  }
+
+  // Avanzar una columna con pasos pequeños y la física desactivada. El servidor
+  // valida contra SU mundo (que ya tiene el bloque colocado) y al entrar en esos
+  // chunks nos los manda: deja de ser "a ciegas". No es volar, es caminar a ras.
+  async stepTo(column) {
+    const feetStart = this.bot.entity.position.clone()
+    const feetTarget = new Vec3(column.x + 0.5, column.y + 1, column.z + 0.5)
+    const physicsWasEnabled = this.bot.physicsEnabled
+
+    this.bot.physicsEnabled = false
+
+    try {
+      for (let step = 1; step <= STEP_COUNT; step += 1) {
+        const t = step / STEP_COUNT
+
+        this.bot.entity.position.set(
+          feetStart.x + (feetTarget.x - feetStart.x) * t,
+          feetStart.y + (feetTarget.y - feetStart.y) * t,
+          feetStart.z + (feetTarget.z - feetStart.z) * t
+        )
+
+        await new Promise((resolve) => setTimeout(resolve, STEP_MS))
+      }
+    } finally {
+      this.bot.physicsEnabled = physicsWasEnabled
+    }
+
+    // Si el servidor aceptó el movimiento, la columna destino existe para el
+    // cliente (o al menos su chunk); si sigue desconocida, no se avanzó.
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+
+    return this.columnKind(column) !== "unknown"
   }
 
   // En una isla flotante un paso de más es caer al vacío: se trabaja agachado.
@@ -556,4 +579,4 @@ class FarmManager {
   }
 }
 
-module.exports = { FarmManager, collectFootprint, faceDirection, parseArea, planFills, withinReach }
+module.exports = { FarmManager, collectFootprint, parseArea, planFills, withinReach }
