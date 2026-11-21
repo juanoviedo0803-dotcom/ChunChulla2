@@ -55,6 +55,9 @@ function createBot() {
 
     console.log(`🎮 Apareció en el mundo | hotbar: ${hotbar}`)
 
+    // Siempre agachado: en una isla flotante un paso de más es caer al vacío.
+    bot.setControlState("sneak", true)
+
     setTimeout(() => entryManager.start(), SPAWN_DELAY_MS)
   })
 

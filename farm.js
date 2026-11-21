@@ -149,12 +149,43 @@ class FarmManager {
     return columns.map(([dx, dz]) => ({ x: base.x + dx, y: base.y - 1, z: base.z + dz }))
   }
 
-  // Sin argumentos: la isla bajo los pies. Con "x1 z1 x2 z2": ese rectángulo.
-  // El bot y la granja pueden estar en sitios distintos: ahí mandan las coordenadas.
-  resolveColumns(arg) {
-    if (!String(arg || "").trim()) return { columns: this.footprint() }
+  // Rectángulo que encierra la isla: es lo que se rellena cuando no se dan
+  // coordenadas. Con la isla como referencia, el bot decide solo qué falta.
+  islandBox() {
+    const solid = this.footprint().filter((position) => this.isSolid(position))
 
-    return parseArea(arg, this.floorY())
+    if (solid.length === 0) return null
+
+    const xs = solid.map((position) => position.x)
+    const zs = solid.map((position) => position.z)
+
+    return { x1: Math.min(...xs), z1: Math.min(...zs), x2: Math.max(...xs), z2: Math.max(...zs) }
+  }
+
+  // Sin argumentos: el rectángulo de la isla. Un número: ese margen alrededor.
+  // Cuatro números: ese rectángulo exacto.
+  resolveColumns(arg) {
+    const text = String(arg || "").trim()
+
+    if (!text || text.split(/\s+/).length === 1) {
+      const box = this.islandBox()
+
+      if (!box) return { error: "no encuentro suelo bajo el bot: ponlo sobre la isla" }
+
+      const margin = text ? Number(text) : 0
+
+      if (!Number.isInteger(margin) || margin < 0) {
+        return { error: "usa !fill o !fill <margen> o !fill x1 z1 x2 z2" }
+      }
+
+      // El rectángulo sale de la isla real, no de un número tecleado: no lleva
+      // el tope anti-typo de las coordenadas manuales.
+      const area = `${box.x1 - margin} ${box.z1 - margin} ${box.x2 + margin} ${box.z2 + margin}`
+
+      return parseArea(area, this.floorY(), { maxArea: Number.POSITIVE_INFINITY })
+    }
+
+    return parseArea(text, this.floorY())
   }
 
   scan(arg) {
@@ -208,12 +239,10 @@ class FarmManager {
     }
 
     this.busy = true
-    this.sneak(true)
 
     try {
       await this.runTill(columns)
     } finally {
-      this.sneak(false)
       this.busy = false
     }
   }
@@ -234,12 +263,10 @@ class FarmManager {
     }
 
     this.busy = true
-    this.sneak(true)
 
     try {
       await this.runFill(columns)
     } finally {
-      this.sneak(false)
       this.busy = false
     }
   }
@@ -378,7 +405,9 @@ class FarmManager {
       }
 
       if (!(await this.holdItem("dirt"))) {
-        console.log("⚠️ No se pudo poner la tierra en la mano; se detiene el relleno")
+        console.log(
+          `🧱 Sin tierra disponible: ${placed} colocados${blind > 0 ? ` (${blind} a ciegas)` : ""}, quedan ${missing.length} huecos`
+        )
 
         return
       }
@@ -457,15 +486,6 @@ class FarmManager {
     await new Promise((resolve) => setTimeout(resolve, 1200))
 
     return this.columnKind(column) !== "unknown"
-  }
-
-  // En una isla flotante un paso de más es caer al vacío: se trabaja agachado.
-  sneak(on) {
-    try {
-      this.bot.setControlState("sneak", on)
-    } catch (err) {
-      console.log(`⚠️ No se pudo cambiar el agachado: ${err.message}`)
-    }
   }
 
   async runTill(columns) {

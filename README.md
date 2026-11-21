@@ -58,15 +58,17 @@ Mientras corre, cada línea que escribas en esa consola **se envía como el bot*
 - En el log solo queda el nombre del comando, nunca los argumentos: una contraseña no se registra.
 - `Ctrl+C` cierra el bot.
 
-## Granja (`!scan` y `!farm`)
+## Granja (`!scan` y `!farm`, `!fill`)
 
-Comandos locales en la consola (empiezan por `!`, no se envían al servidor):
+Comandos locales en la consola (empiezan por `!`, no se envían al servidor). **Sin coordenadas**, el bot toma como referencia el rectángulo que encierra la isla bajo sus pies:
 
-- `!scan` — detecta la isla bajo los pies del bot (región sólida conectada) e informa cuántas columnas hay y cuántas son arables (`dirt`/`grass_block`).
-- `!scan x1 z1 x2 z2` — lo mismo pero sobre ese rectángulo exacto (útil cuando la granja no está donde está el bot).
-- `!farm` / `!farm x1 z1 x2 z2` — ara con la azada la tierra de la isla o del rectángulo: se coloca a ≤4 bloques, camina hacia lo que queda lejos (agachado, para no caer al vacío), rompe la hierba alta que estorbe y cuenta lo que no pudo alcanzar.
+- `!scan` — cuántas columnas hay, cuántas son arables y el rectángulo de la isla.
+- `!fill` — rellena con tierra lo que falta dentro de ese rectángulo. `!fill 3` lo amplía 3 bloques por lado; `!fill x1 z1 x2 z2` usa uno exacto.
+- `!farm` — ara la tierra de ese mismo rectángulo.
 
-Necesita una azada en el inventario; sin ella avisa y no hace nada. La arena no se ara: solo `dirt`/`grass_block` se convierten en farmland. Tope de área: 400 columnas.
+El relleno trabaja solo: coloca lo que tiene a mano, en el borde que el servidor no le ha enviado manda el paquete a ciegas, se mueve a pasos sobre lo colocado para que el servidor le mande esos chunks y sigue. Necesita tierra (y azada para `!farm`); si se acaba, lo dice y para. Tope anti-typo: 400 columnas al escribir coordenadas a mano.
+
+El bot va **siempre agachado** desde que aparece en el mundo.
 
 ## Verificado contra el servidor real
 
