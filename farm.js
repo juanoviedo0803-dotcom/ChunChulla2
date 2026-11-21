@@ -90,6 +90,20 @@ const NEIGHBORS = [
   [0, -1]
 ]
 
+// Caras del protocolo (1.8): 0 -Y, 1 +Y, 2 -Z, 3 +Z, 4 -X, 5 +X.
+const FACE_DIRECTION = {
+  "0,-1,0": 0,
+  "0,1,0": 1,
+  "0,0,-1": 2,
+  "0,0,1": 3,
+  "-1,0,0": 4,
+  "1,0,0": 5
+}
+
+function faceDirection(face) {
+  return FACE_DIRECTION[`${face.x},${face.y},${face.z}`]
+}
+
 // En el vacío un bloque sólo se puede poner contra un vecino sólido: de ahí sale
 // la cara sobre la que hay que hacer clic. Sin vecino alcanzable, no hay plan.
 function planFills(columns, isSolid, isReachable) {
@@ -167,8 +181,8 @@ class FarmManager {
     const counts = {}
 
     for (const position of columns) {
-      const block = this.bot.blockAt(this.toVec(position))
-      const name = block ? block.name : "?"
+      const kind = this.columnKind(position)
+      const name = kind === "solid" ? this.bot.blockAt(this.toVec(position)).name : kind
 
       counts[name] = (counts[name] || 0) + 1
     }
@@ -243,13 +257,42 @@ class FarmManager {
   }
 
   isSolid(position) {
-    const block = this.bot.blockAt(this.toVec(position))
+    return this.columnKind(position) === "solid"
+  }
 
-    return Boolean(block) && !NOT_FLOOR.has(block.name)
+  // En el vacío `blockAt` devuelve null igual que en una zona sin cargar, y no
+  // son lo mismo: si la columna existe, el hueco es aire de verdad y se puede
+  // rellenar; si no existe, el bot no ve nada y no debe tocar.
+  columnKind(position) {
+    const vec = this.toVec(position)
+    const block = this.bot.blockAt(vec)
+
+    if (block) return NOT_FLOOR.has(block.name) ? "air" : "solid"
+
+    return this.bot.world.getColumnAt(vec) ? "air" : "unknown"
   }
 
   dirtItem() {
     return this.bot.inventory.items().find((item) => item.name === "dirt" || item.name === "grass_block")
+  }
+
+  // Paquete crudo: el destino puede no estar cargado en el cliente, así que
+  // mineflayer no puede validarlo ni esperar confirmación. El servidor decide.
+  placeAgainst(reference, face) {
+    const direction = faceDirection(face)
+
+    if (direction === undefined) return false
+
+    this.bot._client.write("block_place", {
+      location: { x: reference.x, y: reference.y, z: reference.z },
+      direction,
+      heldItem: this.bot.heldItem || { blockId: -1 },
+      cursorX: 128,
+      cursorY: 128,
+      cursorZ: 128
+    })
+
+    return true
   }
 
   // El click de inventario puede quedarse sin confirmación del servidor; se
@@ -285,11 +328,7 @@ class FarmManager {
     }
 
     const blocked = columns.filter((position) => this.isSolid(position)).length
-    const air = columns.filter((position) => {
-      const block = this.bot.blockAt(this.toVec(position))
-
-      return Boolean(block) && NOT_FLOOR.has(block.name)
-    }).length
+    const air = columns.filter((position) => this.columnKind(position) === "air").length
 
     // Sin este desglose un "0 colocados" no dice si el área está llena, vacía
     // o simplemente fuera de los chunks que el bot tiene cargados.
@@ -298,23 +337,23 @@ class FarmManager {
     )
 
     let placed = 0
+    let blind = 0
+    const attempted = new Set()
 
     // Cada pasada rellena lo que da a un bloque ya sólido, así el borde avanza.
-    // Se corta cuando una pasada no puede colocar nada.
-    for (let pass = 0; pass < 20; pass += 1) {
-      // Solo se rellena lo que se ve vacío de verdad: una columna sin cargar
-      // (`blockAt` null) no es un hueco, es información que falta.
+    // Se corta cuando una pasada no coloca nada.
+    for (let pass = 0; pass < 40; pass += 1) {
       const missing = columns.filter((position) => {
-        const block = this.bot.blockAt(this.toVec(position))
+        if (attempted.has(`${position.x},${position.y},${position.z}`)) return false
 
-        return Boolean(block) && NOT_FLOOR.has(block.name)
+        return this.columnKind(position) !== "solid"
       })
 
       if (missing.length === 0) {
         console.log(
           placed === 0
             ? "🧱 No hay huecos en esa área: nada que rellenar"
-            : `🧱 Relleno completo: ${placed} bloques colocados`
+            : `🧱 Relleno completo: ${placed} bloques colocados${blind > 0 ? ` (${blind} a ciegas)` : ""}`
         )
 
         return
@@ -355,21 +394,42 @@ class FarmManager {
         return
       }
 
+      let placedThisPass = 0
+
       for (const step of plan) {
+        attempted.add(`${step.target.x},${step.target.y},${step.target.z}`)
+
         if (!this.dirtItem()) break
 
         const referenceBlock = this.bot.blockAt(this.toVec(step.reference))
 
         if (!referenceBlock || NOT_FLOOR.has(referenceBlock.name)) continue
 
+        const kind = this.columnKind(step.target)
+
         try {
-          await this.bot.placeBlock(referenceBlock, new Vec3(step.face.x, 0, step.face.z))
+          if (kind === "unknown") {
+            // La columna no existe para el cliente: se manda el paquete contra
+            // el borde sólido y decide el servidor. Sin confirmación posible.
+            this.placeAgainst(step.reference, step.face)
+            blind += 1
+          } else {
+            await this.bot.placeBlock(referenceBlock, new Vec3(step.face.x, 0, step.face.z))
+          }
+
           placed += 1
+          placedThisPass += 1
         } catch (err) {
           console.log(`⚠️ No se pudo colocar en ${step.target.x},${step.target.z}: ${err.message}`)
         }
 
         await new Promise((resolve) => setTimeout(resolve, USE_DELAY_MS))
+      }
+
+      if (placedThisPass === 0) {
+        console.log(`🧱 Colocados ${placed} (${blind} a ciegas); no se pudo avanzar más`)
+
+        return
       }
     }
 
@@ -496,4 +556,4 @@ class FarmManager {
   }
 }
 
-module.exports = { FarmManager, collectFootprint, parseArea, planFills, withinReach }
+module.exports = { FarmManager, collectFootprint, faceDirection, parseArea, planFills, withinReach }

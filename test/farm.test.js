@@ -3,7 +3,7 @@
 const test = require("node:test")
 const assert = require("node:assert")
 
-const { collectFootprint, parseArea, planFills, withinReach } = require("../farm")
+const { collectFootprint, faceDirection, parseArea, planFills, withinReach } = require("../farm")
 
 test("la isla es la región sólida conectada bajo los pies", () => {
   // Isla de 5x5 rodeada de aire.
@@ -80,6 +80,14 @@ test("ignora las columnas que ya son sólidas", () => {
   const plan = planFills([{ x: 0, y: 64, z: 0 }], () => true, () => true)
 
   assert.deepStrictEqual(plan, [])
+})
+
+test("cada cara del bloque tiene su dirección de protocolo", () => {
+  assert.strictEqual(faceDirection({ x: 1, y: 0, z: 0 }), 5)
+  assert.strictEqual(faceDirection({ x: -1, y: 0, z: 0 }), 4)
+  assert.strictEqual(faceDirection({ x: 0, y: 0, z: -1 }), 2)
+  assert.strictEqual(faceDirection({ x: 0, y: 0, z: 1 }), 3)
+  assert.strictEqual(faceDirection({ x: 0, y: 0, z: 0 }), undefined)
 })
 
 test("alcance de 4 bloques en los tres ejes", () => {
