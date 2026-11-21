@@ -284,6 +284,19 @@ class FarmManager {
       return
     }
 
+    const blocked = columns.filter((position) => this.isSolid(position)).length
+    const air = columns.filter((position) => {
+      const block = this.bot.blockAt(this.toVec(position))
+
+      return Boolean(block) && NOT_FLOOR.has(block.name)
+    }).length
+
+    // Sin este desglose un "0 colocados" no dice si el área está llena, vacía
+    // o simplemente fuera de los chunks que el bot tiene cargados.
+    console.log(
+      `🧱 Área: ${columns.length} columnas | aire: ${air} | ya sólidas: ${blocked} | sin cargar: ${columns.length - air - blocked}`
+    )
+
     let placed = 0
 
     // Cada pasada rellena lo que da a un bloque ya sólido, así el borde avanza.
