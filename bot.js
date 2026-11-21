@@ -86,7 +86,8 @@ attachConsoleInput(
   () => currentBot,
   process.stdin,
   (line) => {
-    const [command] = line.split(/\s+/)
+    const [command, ...rest] = line.split(/\s+/)
+    const arg = rest.join(" ")
     const farm = currentFarm
 
     if (!farm || !currentBot || !currentBot.player) {
@@ -96,18 +97,18 @@ attachConsoleInput(
     }
 
     if (command === "scan") {
-      farm.scan()
+      farm.scan(arg)
 
       return
     }
 
     if (command === "farm") {
-      farm.till().catch((err) => console.log(`⚠️ Error en la granja: ${err.message}`))
+      farm.till(arg).catch((err) => console.log(`⚠️ Error en la granja: ${err.message}`))
 
       return
     }
 
-    console.log(`⌨️ Comando local desconocido: ${command} (usa !scan o !farm)`)
+    console.log(`⌨️ Comando local desconocido: ${command} (usa !scan o !farm, con o sin "x1 z1 x2 z2")`)
   }
 )
 

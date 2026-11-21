@@ -1,7 +1,10 @@
 "use strict"
 
+const { Vec3 } = require("vec3")
+
 const MAX_RADIUS = 24
 const MAX_COLUMNS = 1200
+const MAX_AREA = 400
 const REACH = 4
 const WALK_STEP_MS = 100
 const WALK_TIMEOUT_MS = 6000
@@ -43,6 +46,39 @@ function collectFootprint(isSolid, { maxRadius = MAX_RADIUS, maxColumns = MAX_CO
   return columns
 }
 
+// "x1 z1 x2 z2" -> columnas absolutas en el plano del suelo (`y` = pies - 1).
+function parseArea(arg, y, { maxArea = MAX_AREA } = {}) {
+  const nums = String(arg || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (nums.length !== 4) return { error: "uso: <x1> <z1> <x2> <z2>" }
+
+  const [x1, z1, x2, z2] = nums.map(Number)
+
+  if ([x1, z1, x2, z2].some((n) => !Number.isInteger(n))) {
+    return { error: "las coordenadas deben ser enteras" }
+  }
+
+  const width = Math.abs(x2 - x1) + 1
+  const depth = Math.abs(z2 - z1) + 1
+
+  if (width * depth > maxArea) {
+    return { error: `el área es ${width}x${depth} (${width * depth} columnas); máximo ${maxArea}` }
+  }
+
+  const columns = []
+
+  for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x += 1) {
+    for (let z = Math.min(z1, z2); z <= Math.max(z1, z2); z += 1) {
+      columns.push({ x, y, z })
+    }
+  }
+
+  return { columns }
+}
+
 function withinReach(from, to) {
   return Math.abs(to.x - from.x) <= REACH && Math.abs(to.z - from.z) <= REACH && Math.abs(to.y - from.y) <= REACH
 }
@@ -53,15 +89,20 @@ class FarmManager {
     this.busy = false
   }
 
-  floorBlock(dx, dz) {
-    const pos = this.bot.entity.position.floored()
+  floorY() {
+    return this.bot.entity.position.floored().y - 1
+  }
 
-    return this.bot.blockAt(pos.offset(dx, -1, dz))
+  // blockAt/offset exigen Vec3; las columnas se manejan como objetos planos.
+  toVec(position) {
+    return new Vec3(position.x, position.y, position.z)
   }
 
   footprint() {
+    const base = this.bot.entity.position.floored()
+
     const columns = collectFootprint((dx, dz) => {
-      const block = this.floorBlock(dx, dz)
+      const block = this.bot.blockAt(base.offset(dx, -1, dz))
 
       return Boolean(block) && !NOT_FLOOR.has(block.name)
     })
@@ -70,45 +111,77 @@ class FarmManager {
       console.log(`⚠️ Isla cortada en ${MAX_COLUMNS} columnas (es más grande)`)
     }
 
-    return columns
+    return columns.map(([dx, dz]) => ({ x: base.x + dx, y: base.y - 1, z: base.z + dz }))
   }
 
-  // Qué hay en la isla: cuántas columnas son aranbles y cuántas no.
-  scan() {
+  // Sin argumentos: la isla bajo los pies. Con "x1 z1 x2 z2": ese rectángulo.
+  // El bot y la granja pueden estar en sitios distintos: ahí mandan las coordenadas.
+  resolveColumns(arg) {
+    if (!String(arg || "").trim()) return { columns: this.footprint() }
+
+    return parseArea(arg, this.floorY())
+  }
+
+  scan(arg) {
+    const { columns, error } = this.resolveColumns(arg)
+
+    if (error) {
+      console.log(`⚠️ ${error}`)
+
+      return
+    }
+
     const counts = {}
 
-    for (const [dx, dz] of this.footprint()) {
-      const name = this.floorBlock(dx, dz).name
+    for (const position of columns) {
+      const block = this.bot.blockAt(this.toVec(position))
+      const name = block ? block.name : "?"
 
       counts[name] = (counts[name] || 0) + 1
     }
 
-    const columns = Object.values(counts).reduce((sum, n) => sum + n, 0)
     const arable = [...ARABLE].reduce((sum, name) => sum + (counts[name] || 0), 0)
 
-    console.log(`🗺️ Isla: ${columns} columnas | aranbles: ${arable}`)
+    console.log(`🗺️ ${columns.length} columnas | aranbles: ${arable}`)
     console.log(`   ${JSON.stringify(counts)}`)
-
-    return { columns, arable, counts }
   }
 
-  async till() {
+  async till(arg) {
     if (this.busy) {
       console.log("⏳ Ya hay una tarea de granja en curso")
 
       return
     }
 
+    const { columns, error } = this.resolveColumns(arg)
+
+    if (error) {
+      console.log(`⚠️ ${error}`)
+
+      return
+    }
+
     this.busy = true
+    this.sneak(true)
 
     try {
-      await this.runTill()
+      await this.runTill(columns)
     } finally {
+      this.sneak(false)
       this.busy = false
     }
   }
 
-  async runTill() {
+  // En una isla flotante un paso de más es caer al vacío: se trabaja agachado.
+  sneak(on) {
+    try {
+      this.bot.setControlState("sneak", on)
+    } catch (err) {
+      console.log(`⚠️ No se pudo cambiar el agachado: ${err.message}`)
+    }
+  }
+
+  async runTill(columns) {
     const hoe = this.bot.inventory.items().find((item) => item.name.endsWith("_hoe"))
 
     if (!hoe) {
@@ -117,14 +190,14 @@ class FarmManager {
       return
     }
 
-    const targets = this.footprint().filter(([dx, dz]) => {
-      const block = this.floorBlock(dx, dz)
+    const targets = columns.filter((position) => {
+      const block = this.bot.blockAt(this.toVec(position))
 
       return block && ARABLE.has(block.name)
     })
 
     if (targets.length === 0) {
-      console.log("⚠️ No hay tierra ni hierba que arar en la isla")
+      console.log("⚠️ No hay tierra ni hierba que arar en esa área")
 
       return
     }
@@ -134,14 +207,14 @@ class FarmManager {
     let tilled = 0
     let unreachable = 0
 
-    for (const [dx, dz] of targets) {
-      const base = this.bot.entity.position.floored()
-      const block = this.bot.blockAt(base.offset(dx, -1, dz))
+    for (const position of targets) {
+      const vec = this.toVec(position)
+      const block = this.bot.blockAt(vec)
 
       if (!block || !ARABLE.has(block.name)) continue
 
-      if (!withinReach(this.bot.entity.position, block.position)) {
-        const arrived = await this.walkTo(block.position)
+      if (!withinReach(this.bot.entity.position, position)) {
+        const arrived = await this.walkTo(vec)
 
         if (!arrived) {
           unreachable += 1
@@ -149,10 +222,10 @@ class FarmManager {
         }
       }
 
-      await this.bot.lookAt(block.position.offset(0.5, 0.5, 0.5), true)
+      await this.bot.lookAt(vec.offset(0.5, 0.5, 0.5), true)
 
       // La hierba alta encima impide arar: se rompe primero.
-      const above = this.bot.blockAt(block.position.offset(0, 1, 0))
+      const above = this.bot.blockAt(vec.offset(0, 1, 0))
 
       if (above && PLANT.has(above.name)) {
         await this.bot.lookAt(above.position.offset(0.5, 0.5, 0.5), true)
@@ -192,4 +265,4 @@ class FarmManager {
   }
 }
 
-module.exports = { FarmManager, collectFootprint, withinReach }
+module.exports = { FarmManager, collectFootprint, parseArea, withinReach }

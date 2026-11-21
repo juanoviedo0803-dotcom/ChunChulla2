@@ -63,9 +63,10 @@ Mientras corre, cada línea que escribas en esa consola **se envía como el bot*
 Comandos locales en la consola (empiezan por `!`, no se envían al servidor):
 
 - `!scan` — detecta la isla bajo los pies del bot (región sólida conectada) e informa cuántas columnas hay y cuántas son arables (`dirt`/`grass_block`).
-- `!farm` — ara con la azada toda la tierra de la isla: se coloca a ≤4 bloques, camina hacia lo que queda lejos, rompe la hierba alta que estorbe y cuenta lo que no pudo alcanzar.
+- `!scan x1 z1 x2 z2` — lo mismo pero sobre ese rectángulo exacto (útil cuando la granja no está donde está el bot).
+- `!farm` / `!farm x1 z1 x2 z2` — ara con la azada la tierra de la isla o del rectángulo: se coloca a ≤4 bloques, camina hacia lo que queda lejos (agachado, para no caer al vacío), rompe la hierba alta que estorbe y cuenta lo que no pudo alcanzar.
 
-Necesita una azada en el inventario; sin ella avisa y no hace nada. La arena no se ara: solo `dirt`/`grass_block` se convierten en farmland.
+Necesita una azada en el inventario; sin ella avisa y no hace nada. La arena no se ara: solo `dirt`/`grass_block` se convierten en farmland. Tope de área: 400 columnas.
 
 ## Verificado contra el servidor real
 

@@ -3,7 +3,7 @@
 const test = require("node:test")
 const assert = require("node:assert")
 
-const { collectFootprint, withinReach } = require("../farm")
+const { collectFootprint, parseArea, withinReach } = require("../farm")
 
 test("la isla es la región sólida conectada bajo los pies", () => {
   // Isla de 5x5 rodeada de aire.
@@ -30,6 +30,27 @@ test("respeta el radio máximo", () => {
 
 test("respeta el tope de columnas", () => {
   assert.strictEqual(collectFootprint(() => true, { maxColumns: 10 }).length, 10)
+})
+
+test("un área de coordenadas cubre el rectángulo en el plano del suelo", () => {
+  const { columns } = parseArea("10 20 12 22", 64)
+
+  assert.strictEqual(columns.length, 9)
+  assert.deepStrictEqual(columns[0], { x: 10, y: 64, z: 20 })
+  assert.deepStrictEqual(columns[8], { x: 12, y: 64, z: 22 })
+})
+
+test("las esquinas se pueden dar en cualquier orden", () => {
+  const a = parseArea("12 22 10 20", 64).columns
+  const b = parseArea("10 20 12 22", 64).columns
+
+  assert.deepStrictEqual(a, b)
+})
+
+test("rechaza coordenadas inválidas y áreas enormes", () => {
+  assert.match(parseArea("10 20", 64).error, /uso/)
+  assert.match(parseArea("10 20 x 22", 64).error, /enteras/)
+  assert.match(parseArea("0 0 100 100", 64).error, /máximo/)
 })
 
 test("alcance de 4 bloques en los tres ejes", () => {
