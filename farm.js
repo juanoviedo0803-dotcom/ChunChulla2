@@ -298,7 +298,11 @@ class FarmManager {
       })
 
       if (missing.length === 0) {
-        console.log(`🧱 Relleno completo: ${placed} bloques colocados`)
+        console.log(
+          placed === 0
+            ? "🧱 No hay huecos en esa área: nada que rellenar"
+            : `🧱 Relleno completo: ${placed} bloques colocados`
+        )
 
         return
       }
@@ -322,6 +326,12 @@ class FarmManager {
         if (arrived) continue
 
         console.log(`🧱 Colocados ${placed}; quedan ${missing.length} huecos y no se puede avanzar sin caer. Acerca el bot.`)
+
+        return
+      }
+
+      if (!this.dirtItem()) {
+        console.log(`🧱 Se acabó la tierra: ${placed} colocados, ${missing.length} huecos`)
 
         return
       }
